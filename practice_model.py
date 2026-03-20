@@ -3,14 +3,13 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-
 class SinusoidalPositionalEmbedding(nn.Module):
-    #intialize the constructor
-    def __init__(self, dim : int):
+    # initialize the constructor
+    def __init__(self, dim: int):
         super().__init__()
-        self.dim= dim
+        self.dim = dim
     
-    def forward (self, time: torch.Tensor) -> torch.Tensor :
+    def forward(self, time: torch.Tensor) -> torch.Tensor:
         # time -> tensor of timestep indices of size (batch_size, )
         device = time.device
         half_dim = self.dim // 2
@@ -20,22 +19,22 @@ class SinusoidalPositionalEmbedding(nn.Module):
 
         emb = time[:, None] * emb[None, :]
         emb = torch.cat([torch.sin(emb), torch.cos(emb)], dim=-1)
-        # returns ( batch_size, dim)
+        # returns (batch_size, dim)
 
         return emb
 
 class ResidualBlock(nn.Module):
-    #initialize the channels and the dimention
-    def __init__(self, in_channels : int, out_channels: int, time_emb_dim: int, dropout: float= 0.1):
+    # initialize the channels and the dimension
+    def __init__(self, in_channels: int, out_channels: int, time_emb_dim: int, dropout: float = 0.1):
         super().__init__()
-        self.in_ch= in_channels
-        self.out_ch= out_channels
-        self.time_emb_dim= time_emb_dim
+        self.in_ch = in_channels
+        self.out_ch = out_channels
+        self.time_emb_dim = time_emb_dim
 
-        #first conv layer
-        self.conv1= nn.Conv2d(in_channels,out_channels, kernel_size=3, padding= 1)
+        # first conv layer
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1)
 
-         # Time embedding projection
+        # Time embedding projection
         self.time_mlp = nn.Sequential(
             nn.Linear(time_emb_dim, out_channels * 2),
             nn.GELU(),
@@ -44,7 +43,7 @@ class ResidualBlock(nn.Module):
         # Second convolution
         self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)
 
-        #Group norm layers
+        # Group norm layers
         self.norm1 = nn.GroupNorm(32, in_channels)
         self.norm2 = nn.GroupNorm(32, out_channels)
 
@@ -57,16 +56,8 @@ class ResidualBlock(nn.Module):
         else:
             self.skip_conv = nn.Identity()
 
-    def forward(self, x : torch.Tensor,time_emb: torch.Tensor ) -> torch.Tensor:
-        """
-        Args:
-            x: Input tensor of shape (batch_size, in_channels, height, width)
-            time_emb: Time embedding of shape (batch_size, time_emb_dim)
-        Returns:
-            Output tensor of shape (batch_size, out_channels, height, width)
-        """
-
-         # First block
+    def forward(self, x: torch.Tensor, time_emb: torch.Tensor) -> torch.Tensor:
+        # First block
         h = self.norm1(x)
         h = F.gelu(h)
         h = self.conv1(h)
@@ -86,14 +77,12 @@ class ResidualBlock(nn.Module):
         return h + self.skip_conv(x)
 
 class AttentionBlock(nn.Module):
-    def __init__(self, channels: int, num_heads: int= 4, num_head_channels= -1 ):
+    def __init__(self, channels: int, num_heads: int = 4, num_head_channels=-1):
         super().__init__()
-
-
-        self.channels= channels
+        self.channels = channels
         self.num_heads = num_heads
 
-        #number of channels per head 
+        # number of channels per head 
         if num_head_channels == -1:
             self.num_head_channels = channels // num_heads
         else:
@@ -110,12 +99,6 @@ class AttentionBlock(nn.Module):
         self.to_out = nn.Linear(channels, channels)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Args:
-            x: Input tensor of shape (batch_size, channels, height, width)
-        Returns:
-            Output tensor of shape (batch_size, channels, height, width)
-        """
         batch_size, channels, height, width = x.shape
 
         # Normalize
@@ -132,7 +115,6 @@ class AttentionBlock(nn.Module):
         q = q.view(batch_size, seq_len, self.num_heads, self.num_head_channels).transpose(1, 2)
         k = k.view(batch_size, seq_len, self.num_heads, self.num_head_channels).transpose(1, 2)
         v = v.view(batch_size, seq_len, self.num_heads, self.num_head_channels).transpose(1, 2)
-
 
         # Attention
         scale = self.num_head_channels ** -0.5
@@ -152,26 +134,26 @@ class AttentionBlock(nn.Module):
         
         return out + x
     
-class UNet (nn.Module):
-    def __init__ ( 
+class UNet(nn.Module):
+    def __init__(
             self, 
-            in_channels= 3,
-            out_channels= 3,
+            in_channels=3,
+            out_channels=3,
             model_channels=128,
-            num_res_blocks= 2,
-            attention_resolutions= (8,16),
-            dropout = 0.1,
-            time_emb_dim = 128,
+            num_res_blocks=2,
+            attention_resolutions=(8, 16),
+            dropout=0.1,
+            time_emb_dim=128,
     ):
         super().__init__()
 
         self.in_channels = in_channels
         self.out_channels = out_channels
-        self.dropout= dropout
-        self.model_channels= model_channels
+        self.dropout = dropout
+        self.model_channels = model_channels
         self.time_emb_dim = time_emb_dim
         self.num_res_blocks = num_res_blocks
-        self.attention_resolutions= attention_resolutions
+        self.attention_resolutions = attention_resolutions
 
         # Time embedding
         self.time_embedding = SinusoidalPositionalEmbedding(time_emb_dim)
@@ -180,15 +162,19 @@ class UNet (nn.Module):
             nn.GELU(),
             nn.Linear(time_emb_dim * 2, time_emb_dim),
         )
+        
         # Initial convolution
         self.input_conv = nn.Conv2d(in_channels, model_channels, kernel_size=3, padding=1)
         
         # Encoder with downsampling
         self.down_blocks = nn.ModuleList()
-        self.down_attention_blocks = nn.ModuleList() # a list of modules (layers)
+        self.down_attention_blocks = nn.ModuleList() 
         
         current_channels = model_channels
         resolution = 32  
+        
+        # Track channels dynamically for the decoder skip connections
+        self.saved_channels = [model_channels] 
 
         for level in range(3):  # 3 downsampling levels
             for _ in range(num_res_blocks):
@@ -202,6 +188,8 @@ class UNet (nn.Module):
                     self.down_attention_blocks.append(AttentionBlock(current_channels))
                 else:
                     self.down_attention_blocks.append(nn.Identity())
+                
+                self.saved_channels.append(current_channels)
             
             # Downsample
             if level < 2:  # Don't downsample after the last level
@@ -209,9 +197,10 @@ class UNet (nn.Module):
                     nn.Conv2d(current_channels, current_channels, kernel_size=3, stride=2, padding=1)
                 )
                 self.down_attention_blocks.append(nn.Identity())
+                self.saved_channels.append(current_channels)
                 resolution //= 2
             
-            # Middle blocks
+        # Middle blocks
         self.middle_blocks = nn.ModuleList()
         for _ in range(num_res_blocks):
             self.middle_blocks.append(
@@ -225,11 +214,13 @@ class UNet (nn.Module):
         self.up_blocks = nn.ModuleList()
         self.up_attention_blocks = nn.ModuleList()
         
-        resolution = 4  # Starting resolution after downsampling
+        resolution = 8  # Starting resolution after downsampling
         
         for level in range(2, -1, -1):  # 3 upsampling levels
             for _ in range(num_res_blocks + 1):
-                skip_channels = model_channels * (2 ** level)
+                # Pop the exact channel size expected from the encoder
+                skip_channels = self.saved_channels.pop() 
+                
                 self.up_blocks.append(
                     ResidualBlock(current_channels + skip_channels, model_channels * (2 ** level), time_emb_dim, dropout)
                 )
@@ -253,12 +244,61 @@ class UNet (nn.Module):
         self.final_norm = nn.GroupNorm(32, model_channels)
         self.final_conv = nn.Conv2d(model_channels, out_channels, kernel_size=3, padding=1)
 
-    def forward(self, x: torch.Tensor, timesteps:torch.Tensor ):
+    def forward(self, x: torch.Tensor, timesteps: torch.Tensor):
         
+        # embed timesteps
+        time_emb = self.time_embedding(timesteps)
+        time_emb = self.time_mlp(time_emb)
 
+        # first conv
+        h = self.input_conv(x)
 
+        # store skip connections
+        skips = [h]
 
-
+        # Encoder
+        for i in range(len(self.down_blocks)):
+            if isinstance(self.down_blocks[i], ResidualBlock):
+                h = self.down_blocks[i](h, time_emb)
+                h = self.down_attention_blocks[i](h)
+                skips.append(h)
+            else:
+                h = self.down_blocks[i](h)
+                # Appending the downsample outputs so they are available for the decoder
+                skips.append(h) 
         
+        # Middle
+        for block in self.middle_blocks:
+            h = block(h, time_emb)
+        h = self.middle_attention(h)
 
+        # Decoder
+        for i in range(len(self.up_blocks)):
+            if isinstance(self.up_blocks[i], ResidualBlock):
+                skip = skips.pop()
+                h = torch.cat([h, skip], dim=1)
+                h = self.up_blocks[i](h, time_emb)
+                h = self.up_attention_blocks[i](h)
+            else:
+                h = self.up_blocks[i](h)
+        
+        # final output
+        h = self.final_norm(h)
+        h = F.gelu(h)
+        output = self.final_conv(h)
 
+        return output
+
+# --- Testing the model ---
+
+# Defining the inputs
+x = torch.rand([10, 3, 32, 32])
+# Fixed: Timesteps should be integers for the embedding layer
+timesteps = torch.randint(0, 1000, (10,)) 
+
+# Defining instance of class
+model = UNet()
+
+# Calculating output
+output = model(x, timesteps)
+print(f"Final output shape: {output.shape}")

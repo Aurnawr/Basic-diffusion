@@ -103,7 +103,7 @@ class ResidualBlock(nn.Module):
         return h + self.skip_conv(x)
 
 
-class AttentionBlock(nn.Module):n
+class AttentionBlock(nn.Module):
     """
     Multi-head self-attention block with group normalization.
     """
@@ -171,7 +171,6 @@ class AttentionBlock(nn.Module):n
         
         return out + x
 
-
 class UNet(nn.Module):
     """
     U-Net architecture for denoising in diffusion models.
@@ -206,7 +205,7 @@ class UNet(nn.Module):
         )
         
         # Initial convolution
-        self.input_conv = nn.Conv2d(in_channels, model_channels, kernel_size=3, padding=1)
+        self. input_conv = nn.Conv2d(in_channels, model_channels, kernel_size=3, padding=1)
         
         # Encoder with downsampling
         self.down_blocks = nn.ModuleList()
@@ -297,7 +296,6 @@ class UNet(nn.Module):
         skips = [h]
         
         # Encoder
-        down_idx = 0
         for i in range(len(self.down_blocks)):
             if isinstance(self.down_blocks[i], ResidualBlock):
                 h = self.down_blocks[i](h, time_emb)
@@ -306,10 +304,7 @@ class UNet(nn.Module):
             else:  # Downsample
                 h = self.down_blocks[i](h)
         
-        # Middle
-        for block in self.middle_blocks:
-            h = block(h, time_emb)
-        h = self.middle_attention(h)
+        h ``
         
         # Decoder
         for i in range(len(self.up_blocks)):
@@ -535,3 +530,5 @@ if __name__ == "__main__":
     # Example: sampling (slow without many iterations)
     # sample = model.sample(batch_size=2, image_shape=(3, 32, 32))
     # print(f"Generated image shape: {sample.shape}")
+
+
